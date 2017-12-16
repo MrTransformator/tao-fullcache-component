@@ -123,7 +123,69 @@ class Component_FullCache extends CMS_Component implements Core_ModuleInterface
         if ($this->ajax_insertions) {
             $response_body = $this->add_blocks($response_body);
         }
+
+        /**
+         * @var $settings stdClass
+         */
+        $settings = $this->config('settings');
+
+        if (property_exists($settings, 'base64src') && $settings->base64src) {
+            $response_body = $this->convertSrcs($response_body);
+        }
+
         return str_replace(["\r", "\t", '   '], '', trim($response_body));
+    }
+
+    /**
+     * Конвертация ссылок на картинки в base64 формат
+     *
+     * @param string $body
+     * @return string
+     */
+    public function convertSrcs($body = '')
+    {
+        $dom = new DOMDocument();
+        $dom->loadHTML($body);
+
+        foreach ($dom->getElementsByTagName('img') as $image) {
+            /**
+             * @var $image DOMElement
+             */
+
+            $image->setAttribute('src', $this->src64($image->getAttribute('src')));
+        }
+        return $dom->saveHTML();
+    }
+
+    /**
+     * Конвертация ссылки на файл классического вида (www/images/1.jpg)
+     * в base64 формат
+     *
+     * Может привести к падению производительности
+     *
+     * @param string $src
+     * @return string
+     */
+    public function src64($src = '')
+    {
+        if (empty($src)) {
+            return '';
+        }
+
+        $file = '../www' . $src;
+
+        if (!is_file($file)) {
+            return '';
+        }
+
+        $extension = pathinfo($file, PATHINFO_EXTENSION);
+
+
+        if (!in_array(mb_strtolower($extension), ['jpg', 'jpeg', 'png', 'gif'])) {
+            return '';
+        }
+
+        return 'data:image/' . $extension . ';base64,' . base64_encode(file_get_contents($file));
     }
 
     /**
